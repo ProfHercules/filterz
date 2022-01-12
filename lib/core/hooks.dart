@@ -1,5 +1,8 @@
-import 'package:camera/camera.dart';
+// Flutter imports:
 import 'package:flutter/widgets.dart';
+
+// Package imports:
+import 'package:camera/camera.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 
 /// Creates and disposes a [CameraController].

@@ -1,5 +1,8 @@
-import 'package:bitmap/bitmap.dart';
+// Flutter imports:
 import 'package:flutter/material.dart';
+
+// Package imports:
+import 'package:bitmap/bitmap.dart';
 
 class ProcessResult {
   const ProcessResult({
