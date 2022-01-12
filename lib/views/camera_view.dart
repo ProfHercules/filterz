@@ -21,7 +21,7 @@ class CameraView extends HookConsumerWidget {
     final cameraStream = useStreamController<ProcessResult>();
 
     useEffect(() {
-      final processor = CameraImageProcessor();
+      final processor = MotionImageProcessor();
       controller.initialize().then(
             (_) => controller.startImageStream(
               (image) => cameraStream.add(processor.processImage(image)),
