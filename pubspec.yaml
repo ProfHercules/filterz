@@ -15,6 +15,8 @@ dependencies:
   # extensions & utilities
   dartx: ^1.0.0
   camera: ^0.9.4+5
+  image: ^3.1.0
+  bitmap: ^0.1.2
 
   # ui & themeing
   flutter_vector_icons: ^1.0.0
@@ -30,6 +32,7 @@ dependencies:
   hooks_riverpod: ^1.0.3
   json_annotation: ^4.4.0
   state_notifier: ^0.7.1
+  rxdart: 0.27.3
 
 dev_dependencies:
   flutter_test:
