@@ -1,9 +1,11 @@
 // Dart imports:
+import 'dart:math';
 import 'dart:typed_data';
 
 // Package imports:
 import 'package:bitmap/bitmap.dart';
 import 'package:camera/camera.dart';
+import 'package:dartx/dartx.dart';
 
 // Project imports:
 import 'package:filterz/core/core.dart';
@@ -25,6 +27,7 @@ class CameraImageProcessor {
 
     // -> RGBA|BGRA
     // -> RGBA format
+
     for (var i = 0; i < bytes.length; i += 4) {
       final b = bytes[i + 0];
       final g = bytes[i + 1];
@@ -38,11 +41,12 @@ class CameraImageProcessor {
       final diffG = (pg - g).abs();
       final diffB = (pb - b).abs();
 
-      final avgRGB = (r + g + b).floorDivide(3);
+      final maxDiff = [diffR, diffG, diffB].max()! + 1;
+      final gain = 1 / maxDiff;
 
-      bytes[i + 0] = diffR < 5 ? avgRGB : r;
-      bytes[i + 1] = diffG < 5 ? avgRGB : g;
-      bytes[i + 2] = diffB < 5 ? avgRGB : b;
+      bytes[i + 0] = (r * pow(diffR / 255, gain).toDouble()).round();
+      bytes[i + 1] = (g * pow(diffG / 255, gain).toDouble()).round();
+      bytes[i + 2] = (b * pow(diffB / 255, gain).toDouble()).round();
 
       avgR += r;
       avgG += g;
