@@ -12,6 +12,7 @@ import 'package:filterz/core/core.dart';
 import 'package:flutter/material.dart';
 
 abstract class ProcessingStage {
+  const ProcessingStage();
   void initialize(int pixelCount);
   void processBytes(Uint8List bytes, int idx);
 }
@@ -45,6 +46,8 @@ class ProcessPipeline {
 }
 
 class BGRAtoRGBAStage implements ProcessingStage {
+  const BGRAtoRGBAStage();
+
   @override
   void initialize(int pixelCount) {}
 
@@ -61,6 +64,9 @@ class BGRAtoRGBAStage implements ProcessingStage {
 }
 
 class MotionImageProcessor implements ProcessingStage {
+  MotionImageProcessor({this.diffMin = 0});
+
+  final int diffMin;
   Uint8List? _prevBytes;
 
   @override
@@ -78,9 +84,9 @@ class MotionImageProcessor implements ProcessingStage {
     final pg = _prevBytes![idx + 1];
     final pb = _prevBytes![idx + 2];
 
-    final diffR = (r - pr).abs();
-    final diffG = (g - pg).abs();
-    final diffB = (b - pb).abs();
+    final diffR = ((r - pr).abs() + diffMin).clamp(0, 255);
+    final diffG = ((g - pg).abs() + diffMin).clamp(0, 255);
+    final diffB = ((b - pb).abs() + diffMin).clamp(0, 255);
 
     final maxDiff = [diffR, diffG, diffB].max()! + 1;
     final gain = 1 / maxDiff;
@@ -96,6 +102,10 @@ class MotionImageProcessor implements ProcessingStage {
 }
 
 class GhostImageProcessor implements ProcessingStage {
+  GhostImageProcessor({this.historyLength = 50});
+
+  final int historyLength;
+
   Uint8List? _prevBytes;
 
   @override
@@ -113,9 +123,16 @@ class GhostImageProcessor implements ProcessingStage {
     final pg = _prevBytes![idx + 1];
     final pb = _prevBytes![idx + 2];
 
-    final diffR = (r + pr * 49).floorDivide(50);
-    final diffG = (g + pg * 49).floorDivide(50);
-    final diffB = (b + pb * 49).floorDivide(50);
+    if (historyLength <= 0) {
+      bytes[idx + 0] = r;
+      bytes[idx + 1] = g;
+      bytes[idx + 2] = b;
+      return;
+    }
+
+    final diffR = (r + pr * historyLength).floorDivide(historyLength + 1);
+    final diffG = (g + pg * historyLength).floorDivide(historyLength + 1);
+    final diffB = (b + pb * historyLength).floorDivide(historyLength + 1);
 
     bytes[idx + 0] = diffR;
     bytes[idx + 1] = diffG;
@@ -124,5 +141,27 @@ class GhostImageProcessor implements ProcessingStage {
     _prevBytes![idx + 0] = diffR;
     _prevBytes![idx + 1] = diffG;
     _prevBytes![idx + 2] = diffB;
+  }
+}
+
+class ColorCompressProcessor implements ProcessingStage {
+  const ColorCompressProcessor({this.colors = 3});
+
+  final int colors;
+
+  @override
+  void initialize(int pixelCount) {}
+
+  @override
+  void processBytes(Uint8List bytes, int idx) {
+    final r = bytes[idx + 0];
+    final g = bytes[idx + 1];
+    final b = bytes[idx + 2];
+
+    final groupSize = 255.floorDivide(colors);
+
+    bytes[idx + 0] = (r.ceilDivide(groupSize) * groupSize).clamp(0, 255);
+    bytes[idx + 1] = (g.ceilDivide(groupSize) * groupSize).clamp(0, 255);
+    bytes[idx + 2] = (b.ceilDivide(groupSize) * groupSize).clamp(0, 255);
   }
 }

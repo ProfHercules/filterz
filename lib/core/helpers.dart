@@ -3,6 +3,7 @@ import 'dart:math';
 
 extension IntHelpers on int {
   int floorDivide(num withNum) => (this / withNum).floor();
+  int ceilDivide(num withNum) => (this / withNum).ceil();
   int lerp(num withNum, [double amount = 0.5]) =>
       (this * (1.0 - amount) + withNum * amount).round();
 
