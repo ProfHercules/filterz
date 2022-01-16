@@ -18,18 +18,21 @@ class CameraView extends HookConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = useCameraController(camera: camera);
-    final cameraStream = useStreamController<ProcessResult>();
+    final cameraStream = useStreamController<Image>();
 
     useEffect(() {
-      final processor = MotionImageProcessor();
+      final pipeline = ProcessPipeline([
+        BGRAtoRGBAStage(),
+        GhostImageProcessor(),
+      ]);
       controller.initialize().then(
             (_) => controller.startImageStream(
-              (image) => cameraStream.add(processor.processImage(image)),
+              (image) => cameraStream.add(pipeline.getImage(image)),
             ),
           );
     });
 
-    return StreamBuilder<ProcessResult>(
+    return StreamBuilder<Image>(
       stream: cameraStream.stream.throttleTime(
         Duration(milliseconds: 1000.floorDivide(fps)),
         leading: false,
@@ -37,9 +40,11 @@ class CameraView extends HookConsumerWidget {
       ),
       builder: (context, snapshot) {
         if (snapshot.hasData) {
-          final pr = snapshot.data!;
           return SizedBox.expand(
-            child: Container(color: pr.avgColor, child: pr.image),
+            child: Container(
+              color: Colors.black,
+              child: snapshot.data,
+            ),
           );
         }
 

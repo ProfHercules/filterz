@@ -9,121 +9,120 @@ import 'package:dartx/dartx.dart';
 
 // Project imports:
 import 'package:filterz/core/core.dart';
+import 'package:flutter/material.dart';
 
-abstract class CameraImageProcessor {
-  ProcessResult processImage(CameraImage image);
+abstract class ProcessingStage {
+  void initialize(int pixelCount);
+  void processBytes(Uint8List bytes, int idx);
 }
 
-class MotionImageProcessor implements CameraImageProcessor {
-  Uint8List? _prevBytes;
+class ProcessPipeline {
+  ProcessPipeline(this.stages);
+  final List<ProcessingStage> stages;
 
-  @override
-  ProcessResult processImage(CameraImage image) {
-    var avgR = 0;
-    var avgG = 0;
-    var avgB = 0;
-    const avgA = 255;
-
-    // BGRA format
+  Image getImage(CameraImage image) {
     final bytes = image.planes.first.bytes;
-    _prevBytes ??= Uint8List(bytes.length);
 
-    final pixelCount = bytes.length * 0.25;
+    for (final stage in stages) {
+      stage.initialize(bytes.length);
+    }
 
     for (var i = 0; i < bytes.length; i += 4) {
-      final b = bytes[i + 0];
-      final g = bytes[i + 1];
-      final r = bytes[i + 2];
-
-      final pr = _prevBytes![i + 0];
-      final pg = _prevBytes![i + 1];
-      final pb = _prevBytes![i + 2];
-
-      final diffR = (r - pr).abs();
-      final diffG = (g - pg).abs();
-      final diffB = (b - pb).abs();
-
-      final maxDiff = [diffR, diffG, diffB].max()! + 1;
-      final gain = 1 / maxDiff;
-
-      bytes[i + 0] = (r * pow(diffR / 255, gain).toDouble()).round();
-      bytes[i + 1] = (g * pow(diffG / 255, gain).toDouble()).round();
-      bytes[i + 2] = (b * pow(diffB / 255, gain).toDouble()).round();
-
-      avgR += r;
-      avgG += g;
-      avgB += b;
-
-      _prevBytes![i + 0] = r;
-      _prevBytes![i + 1] = g;
-      _prevBytes![i + 2] = b;
+      for (final stage in stages) {
+        stage.processBytes(bytes, i);
+      }
     }
 
     final bmp = Bitmap.fromHeadless(image.width, image.height, bytes);
 
-    return ProcessResult(
-      bmp: bmp,
-      avgR: avgR.floorDivide(pixelCount),
-      avgG: avgG.floorDivide(pixelCount),
-      avgB: avgB.floorDivide(pixelCount),
-      avgA: avgA,
+    return Image.memory(
+      bmp.buildHeaded(),
+      gaplessPlayback: true,
+      fit: BoxFit.contain,
+      filterQuality: FilterQuality.none,
     );
   }
 }
 
-class GhostImageProcessor implements CameraImageProcessor {
+class BGRAtoRGBAStage implements ProcessingStage {
+  @override
+  void initialize(int pixelCount) {}
+
+  @override
+  void processBytes(Uint8List bytes, int idx) {
+    final b = bytes[idx + 0];
+    final g = bytes[idx + 1];
+    final r = bytes[idx + 2];
+
+    bytes[idx + 0] = r;
+    bytes[idx + 1] = g;
+    bytes[idx + 2] = b;
+  }
+}
+
+class MotionImageProcessor implements ProcessingStage {
   Uint8List? _prevBytes;
 
   @override
-  ProcessResult processImage(CameraImage image) {
-    var avgR = 0;
-    var avgG = 0;
-    var avgB = 0;
-    const avgA = 255;
+  void initialize(int pixelCount) {
+    _prevBytes ??= Uint8List(pixelCount);
+  }
 
-    // BGRA format
-    final bytes = image.planes.first.bytes;
-    _prevBytes ??= Uint8List(bytes.length);
+  @override
+  void processBytes(Uint8List bytes, int idx) {
+    final r = bytes[idx + 0];
+    final g = bytes[idx + 1];
+    final b = bytes[idx + 2];
 
-    final pixelCount = bytes.length * 0.25;
+    final pr = _prevBytes![idx + 0];
+    final pg = _prevBytes![idx + 1];
+    final pb = _prevBytes![idx + 2];
 
-    for (var i = 0; i < bytes.length; i += 4) {
-      final b = bytes[i + 0];
-      final g = bytes[i + 1];
-      final r = bytes[i + 2];
+    final diffR = (r - pr).abs();
+    final diffG = (g - pg).abs();
+    final diffB = (b - pb).abs();
 
-      final pr = _prevBytes![i + 0];
-      final pg = _prevBytes![i + 1];
-      final pb = _prevBytes![i + 2];
+    final maxDiff = [diffR, diffG, diffB].max()! + 1;
+    final gain = 1 / maxDiff;
 
-      final diffR = (r + pr * 49).floorDivide(50);
-      final diffG = (g + pg * 49).floorDivide(50);
-      final diffB = (b + pb * 49).floorDivide(50);
+    bytes[idx + 0] = (r * pow(diffR / 255, gain).toDouble()).round();
+    bytes[idx + 1] = (g * pow(diffG / 255, gain).toDouble()).round();
+    bytes[idx + 2] = (b * pow(diffB / 255, gain).toDouble()).round();
 
-      // final maxDiff = [diffR, diffG, diffB].max()! + 1;
-      // final gain = 1 / maxDiff;
+    _prevBytes![idx + 0] = r;
+    _prevBytes![idx + 1] = g;
+    _prevBytes![idx + 2] = b;
+  }
+}
 
-      bytes[i + 0] = diffR; //(r * pow(diffR / 255, gain).toDouble()).round();
-      bytes[i + 1] = diffG; //(g * pow(diffG / 255, gain).toDouble()).round();
-      bytes[i + 2] = diffB; //(b * pow(diffB / 255, gain).toDouble()).round();
+class GhostImageProcessor implements ProcessingStage {
+  Uint8List? _prevBytes;
 
-      avgR += r;
-      avgG += g;
-      avgB += b;
+  @override
+  void initialize(int pixelCount) {
+    _prevBytes ??= Uint8List(pixelCount);
+  }
 
-      _prevBytes![i + 0] = diffR;
-      _prevBytes![i + 1] = diffG;
-      _prevBytes![i + 2] = diffB;
-    }
+  @override
+  void processBytes(Uint8List bytes, int idx) {
+    final r = bytes[idx + 0];
+    final g = bytes[idx + 1];
+    final b = bytes[idx + 2];
 
-    final bmp = Bitmap.fromHeadless(image.width, image.height, bytes);
+    final pr = _prevBytes![idx + 0];
+    final pg = _prevBytes![idx + 1];
+    final pb = _prevBytes![idx + 2];
 
-    return ProcessResult(
-      bmp: bmp,
-      avgR: avgR.floorDivide(pixelCount),
-      avgG: avgG.floorDivide(pixelCount),
-      avgB: avgB.floorDivide(pixelCount),
-      avgA: avgA,
-    );
+    final diffR = (r + pr * 49).floorDivide(50);
+    final diffG = (g + pg * 49).floorDivide(50);
+    final diffB = (b + pb * 49).floorDivide(50);
+
+    bytes[idx + 0] = diffR;
+    bytes[idx + 1] = diffG;
+    bytes[idx + 2] = diffB;
+
+    _prevBytes![idx + 0] = diffR;
+    _prevBytes![idx + 1] = diffG;
+    _prevBytes![idx + 2] = diffB;
   }
 }
